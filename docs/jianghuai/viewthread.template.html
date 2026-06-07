@@ -742,6 +742,17 @@
       }
 
       rows = [...rows].sort((a, b) => a.dateline - b.dateline);
+      if (!hasTidFilter) {
+        const seenTid = new Set();
+        rows = rows.filter((p) => {
+          const tid = Number(p.tid) || 0;
+          if (seenTid.has(tid)) {
+            return false;
+          }
+          seenTid.add(tid);
+          return true;
+        });
+      }
       activeRows = rows;
       renderedCount = 0;
 
