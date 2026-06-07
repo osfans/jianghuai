@@ -27,6 +27,8 @@
       --button-top: #7f9fc2;
       --button-bottom: #5d7ea4;
       --button-border: #708fb3;
+      --hl-bg: #ffea8a;
+      --hl-ink: #2e2400;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -51,6 +53,8 @@
         --button-top: #4ca3ff;
         --button-bottom: #2d7fd8;
         --button-border: #3f8edf;
+        --hl-bg: #ffd770;
+        --hl-ink: #1d1300;
       }
     }
 
@@ -197,6 +201,13 @@
       color: var(--ink);
     }
 
+    .message mark.hl {
+      background: var(--hl-bg);
+      color: var(--hl-ink);
+      border-radius: 2px;
+      padding: 0 0.08em;
+    }
+
     .message blockquote {
       margin: 8px 0;
       padding: 8px 10px;
@@ -331,6 +342,7 @@
     const attachmentByAid = new Map(allAttachments.map((a) => [Number(a.aid), a]));
 
     let activeRows = [];
+    let activeKeyword = '';
     let renderedCount = 0;
     let observer = null;
 
@@ -560,6 +572,72 @@
       return text;
     }
 
+    function escapeRegExp(s) {
+      return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function highlightMessageHtml(html, keyword) {
+      const q = String(keyword || '').trim();
+      if (!q) {
+        return html;
+      }
+
+      const pattern = new RegExp(escapeRegExp(q), 'gi');
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+
+      while (walker.nextNode()) {
+        textNodes.push(walker.currentNode);
+      }
+
+      for (const node of textNodes) {
+        const source = node.nodeValue || '';
+        if (!source) {
+          continue;
+        }
+
+        pattern.lastIndex = 0;
+        if (!pattern.test(source)) {
+          continue;
+        }
+
+        pattern.lastIndex = 0;
+        const frag = document.createDocumentFragment();
+        let lastIndex = 0;
+        let match = null;
+
+        while ((match = pattern.exec(source)) !== null) {
+          const idx = match.index;
+          const value = match[0];
+          if (idx > lastIndex) {
+            frag.appendChild(document.createTextNode(source.slice(lastIndex, idx)));
+          }
+
+          const mark = document.createElement('mark');
+          mark.className = 'hl';
+          mark.textContent = value;
+          frag.appendChild(mark);
+          lastIndex = idx + value.length;
+
+          if (value.length === 0) {
+            pattern.lastIndex += 1;
+          }
+        }
+
+        if (lastIndex < source.length) {
+          frag.appendChild(document.createTextNode(source.slice(lastIndex)));
+        }
+
+        if (node.parentNode) {
+          node.parentNode.replaceChild(frag, node);
+        }
+      }
+
+      return template.innerHTML;
+    }
+
     function cleanupObserver() {
       if (observer) {
         observer.disconnect();
@@ -578,6 +656,8 @@
       const html = nextRows.map((p, idx) => {
         const floor = startFloor + idx + 1;
         const openAttr = hasTidFilter ? ' open' : '';
+        const rawMessageHtml = renderMessage(p.message || '');
+        const messageHtml = highlightMessageHtml(rawMessageHtml, activeKeyword);
         const badge = hasTidFilter
           ? `<span class="tid">#${floor}</span>`
           : `<a class="tid" href="?tid=${encodeURIComponent(p.tid)}" target="_blank" rel="noopener noreferrer">tid=${escapeHtml(String(p.tid))}</a>`;
@@ -588,7 +668,7 @@
             <span class="date">${escapeHtml(formatDate(p.dateline))}</span>
             ${badge}
           </summary>
-          <div class="message">${renderMessage(p.message || '')}</div>
+          <div class="message">${messageHtml}</div>
         </details>
       `;
       }).join('');
@@ -628,9 +708,12 @@
     }
 
     function render() {
-      const keyword = searchInput.value.trim().toLowerCase();
+      const keywordText = searchInput.value.trim();
+      const keyword = keywordText.toLowerCase();
       const baseRows = hasTidFilter ? normalizedPosts.filter((p) => p.tid === tidParam) : normalizedPosts;
       let rows = baseRows;
+
+      activeKeyword = hasTidFilter ? '' : keywordText;
 
       if (!hasTidFilter && keyword) {
         rows = baseRows.filter((p) => p._searchText.includes(keyword));
