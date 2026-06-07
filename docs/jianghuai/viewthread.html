@@ -785,7 +785,7 @@
         const title = subject || `(无标题)`;
         pageTitle.textContent = title;
         document.title = title;
-        meta.textContent = `${baseRows[0].author || ''} ${formatDate(baseRows[0].dateline)}${rows.length > 1 ? (rows.length - 1) + "，条跟帖" : ""}`;
+        meta.textContent = `${baseRows[0].author || ''} ${formatDate(baseRows[0].dateline)}${rows.length > 1 ? "，" + (rows.length - 1) + "条跟帖" : ""}`;
       } else if (keyword) {
         pageTitle.textContent = '江淮漢韻';
         document.title = '江淮漢韻';
