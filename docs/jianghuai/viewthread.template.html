@@ -333,8 +333,30 @@
     const tidParam = Number(params.get('tid'));
     const hasTidFilter = Number.isFinite(tidParam) && tidParam > 0;
 
-    const allPosts = JSON.parse(document.getElementById('postsData').textContent || '[]');
-    const allAttachments = JSON.parse(document.getElementById('attachmentsData').textContent || '[]');
+    const rawPosts = JSON.parse(document.getElementById('postsData').textContent || '[]');
+    const rawAttachments = JSON.parse(document.getElementById('attachmentsData').textContent || '[]');
+
+    const allPosts = rawPosts.map((row) => ({
+      pid: Number(row[0]) || 0,
+      tid: Number(row[1]) || 0,
+      author: row[2] || '',
+      subject: row[3] || '',
+      dateline: Number(row[4]) || 0,
+      message: row[5] || ''
+    }));
+
+    const allAttachments = rawAttachments.map((row) => ({
+      aid: Number(row[0]) || 0,
+      tid: Number(row[1]) || 0,
+      pid: Number(row[2]) || 0,
+      dateline: Number(row[3]) || 0,
+      filename: row[4] || '',
+      filetype: row[5] || '',
+      filesize: Number(row[6]) || 0,
+      attachment: row[7] || '',
+      downloads: Number(row[8]) || 0,
+      isimage: Number(row[9]) || 0
+    }));
     const normalizedPosts = allPosts.map((p) => ({
       ...p,
       _searchText: `${p.tid} ${p.subject || ''} ${p.message || ''}`.toLowerCase()

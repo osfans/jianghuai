@@ -2,7 +2,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 
 def decode_sql_string(token: str) -> str:
@@ -114,8 +114,8 @@ def iter_insert_tuples(values_sql: str):
         i += 1
 
 
-def parse_posts_from_sql(sql_path: Path) -> List[Dict]:
-    posts: List[Dict] = []
+def parse_posts_from_sql(sql_path: Path) -> List[List]:
+    posts: List[List] = []
     collecting = False
     stmt_lines: List[str] = []
 
@@ -141,12 +141,12 @@ def parse_posts_from_sql(sql_path: Path) -> List[Dict]:
                     stmt_lines = []
                     extract_posts_from_statement(statement, posts)
 
-    posts.sort(key=lambda x: x["dateline"])
+    posts.sort(key=lambda x: x[4])
     return posts
 
 
-def parse_attachments_from_sql(sql_path: Path) -> List[Dict]:
-    attachments: List[Dict] = []
+def parse_attachments_from_sql(sql_path: Path) -> List[List]:
+    attachments: List[List] = []
     collecting = False
     stmt_lines: List[str] = []
 
@@ -172,11 +172,11 @@ def parse_attachments_from_sql(sql_path: Path) -> List[Dict]:
                     stmt_lines = []
                     extract_attachments_from_statement(statement, attachments)
 
-    attachments.sort(key=lambda x: x["aid"])
+    attachments.sort(key=lambda x: x[0])
     return attachments
 
 
-def extract_posts_from_statement(statement: str, posts: List[Dict]) -> None:
+def extract_posts_from_statement(statement: str, posts: List[List]) -> None:
     values_pos = statement.find("VALUES")
     if values_pos == -1:
         return
@@ -204,19 +204,11 @@ def extract_posts_from_statement(statement: str, posts: List[Dict]) -> None:
         subject = decode_sql_string(subject_token)
         message = decode_sql_string(message_token)
 
-        posts.append(
-            {
-                "pid": pid,
-                "tid": tid,
-                "author": author,
-                "subject": subject,
-                "dateline": dateline,
-                "message": message,
-            }
-        )
+        # [pid, tid, author, subject, dateline, message]
+        posts.append([pid, tid, author, subject, dateline, message])
 
 
-def extract_attachments_from_statement(statement: str, attachments: List[Dict]) -> None:
+def extract_attachments_from_statement(statement: str, attachments: List[List]) -> None:
     values_pos = statement.find("VALUES")
     if values_pos == -1:
         return
@@ -244,26 +236,27 @@ def extract_attachments_from_statement(statement: str, attachments: List[Dict]) 
         except ValueError:
             continue
 
+        # [aid, tid, pid, dateline, filename, filetype, filesize, attachment, downloads, isimage]
         attachments.append(
-            {
-                "aid": aid,
-                "tid": tid,
-                "pid": pid,
-                "dateline": dateline,
-                "filename": decode_sql_string(filename_token),
-                "filetype": decode_sql_string(filetype_token),
-                "filesize": filesize,
-                "attachment": decode_sql_string(attachment_token),
-                "downloads": downloads,
-                "isimage": isimage,
-            }
+            [
+                aid,
+                tid,
+                pid,
+                dateline,
+                decode_sql_string(filename_token),
+                decode_sql_string(filetype_token),
+                filesize,
+                decode_sql_string(attachment_token),
+                downloads,
+                isimage,
+            ]
         )
 
 
-def build_html(template_path: Path, posts: List[Dict], attachments: List[Dict]) -> str:
+def build_html(template_path: Path, posts: List[List], attachments: List[List]) -> str:
     template = template_path.read_text(encoding="utf-8")
-    posts_json = json.dumps(posts, ensure_ascii=False)
-    attachments_json = json.dumps(attachments, ensure_ascii=False)
+    posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":"))
+    attachments_json = json.dumps(attachments, ensure_ascii=False, separators=(",", ":"))
     return (
         template.replace("__EMBEDDED_POSTS_JSON__", posts_json)
         .replace("__EMBEDDED_ATTACHMENTS_JSON__", attachments_json)
