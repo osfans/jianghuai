@@ -219,6 +219,61 @@
       margin: 6px 0;
     }
 
+    .bb-attach {
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--card) 70%, transparent);
+    }
+
+    .bb-attach-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .bb-attach-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .bb-attach-missing {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .bb-flash {
+      margin: 8px 0;
+      padding: 8px 10px;
+      border: 1px dashed var(--line);
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--card) 65%, transparent);
+    }
+
+    .bb-list {
+      margin: 8px 0 8px 18px;
+      padding: 0;
+    }
+
+    .bb-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 14px;
+    }
+
+    .bb-table td,
+    .bb-table th {
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      vertical-align: top;
+    }
+
+    .bb-table th {
+      background: color-mix(in srgb, var(--card-strong) 88%, transparent);
+      font-weight: 700;
+    }
+
     .empty {
       margin-top: 24px;
       text-align: center;
@@ -251,6 +306,7 @@
   </div>
 
   <script id="postsData" type="application/json">__EMBEDDED_POSTS_JSON__</script>
+  <script id="attachmentsData" type="application/json">__EMBEDDED_ATTACHMENTS_JSON__</script>
   <script>
     const searchWrap = document.getElementById('searchWrap');
     const searchInput = document.getElementById('searchInput');
@@ -267,10 +323,12 @@
     const hasTidFilter = Number.isFinite(tidParam) && tidParam > 0;
 
     const allPosts = JSON.parse(document.getElementById('postsData').textContent || '[]');
+    const allAttachments = JSON.parse(document.getElementById('attachmentsData').textContent || '[]');
     const normalizedPosts = allPosts.map((p) => ({
       ...p,
       _searchText: `${p.tid} ${p.subject || ''} ${p.message || ''}`.toLowerCase()
     }));
+    const attachmentByAid = new Map(allAttachments.map((a) => [Number(a.aid), a]));
 
     let activeRows = [];
     let renderedCount = 0;
@@ -344,6 +402,56 @@
       return '';
     }
 
+    function sanitizeFontFamily(raw) {
+      const value = String(raw || '').trim();
+      if (!value) {
+        return '';
+      }
+      if (/^[a-zA-Z0-9\s\-_,"']{1,80}$/.test(value)) {
+        return value;
+      }
+      return '';
+    }
+
+    function formatFileSize(bytes) {
+      const n = Number(bytes);
+      if (!Number.isFinite(n) || n <= 0) return '-';
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    function attachmentHref(att) {
+      const path = String(att.attachment || '').replaceAll('\\\\', '/').replace(/^\/+/, '');
+      if (!path) return '';
+      return `attachments/${encodeURI(path)}`;
+    }
+
+    function renderAttachmentByAid(aid, forceImage = false) {
+      const id = Number(aid);
+      const att = attachmentByAid.get(id);
+      if (!att) {
+        return `<span class="bb-attach-missing">[附件 ${escapeHtml(String(aid))} 不存在]</span>`;
+      }
+
+      const href = attachmentHref(att);
+      const filename = escapeHtml(att.filename || `附件 ${id}`);
+      const filetype = escapeHtml(att.filetype || 'unknown');
+      const filesize = escapeHtml(formatFileSize(att.filesize));
+      const downloads = escapeHtml(String(att.downloads || 0));
+      const isImage = forceImage || Number(att.isimage) === 1 || String(att.filetype || '').toLowerCase().startsWith('image/');
+
+      if (!href) {
+        return `<span class="bb-attach-missing">[附件 ${escapeHtml(String(aid))} 路径无效]</span>`;
+      }
+
+      if (isImage) {
+        return `<div class="bb-attach"><a href="${href}" target="_blank" rel="noopener noreferrer"><img src="${href}" alt="${filename}" loading="lazy"></a><div class="bb-attach-meta">${filetype} / ${filesize} / 下载 ${downloads}</div></div>`;
+      }
+
+      return `<div class="bb-attach"><div class="bb-attach-title"><a href="${href}" target="_blank" rel="noopener noreferrer">${filename}</a></div><div class="bb-attach-meta">${filetype} / ${filesize} / 下载 ${downloads}</div></div>`;
+    }
+
     function renderMessage(raw) {
       let text = escapeHtml(String(raw || '')).replace(/\r\n?/g, '\n');
 
@@ -378,6 +486,14 @@
         return `<span style="font-size:${safeSize}">${content}</span>`;
       });
 
+      replaceNested(/\[font=([^\]]+)\]([\s\S]*?)\[\/font\]/gi, (_, font, content) => {
+        const safeFont = sanitizeFontFamily(font);
+        if (!safeFont) {
+          return content;
+        }
+        return `<span style="font-family:${escapeHtml(safeFont)}">${content}</span>`;
+      });
+
       replaceNested(/\[url=([^\]]+)\]([\s\S]*?)\[\/url\]/gi, (_, url, content) => {
         const safeUrl = sanitizeUrl(url);
         if (!safeUrl) {
@@ -402,6 +518,43 @@
         }
         return `<img src="${escapeHtml(safeUrl)}" alt="image" loading="lazy" />`;
       });
+
+      replaceNested(/\[flash(?:=([^\]]+))?\]([\s\S]*?)\[\/flash\]/gi, (_, size, url) => {
+        const safeUrl = sanitizeUrl(url);
+        if (!safeUrl) {
+          return '';
+        }
+        const widthHeight = String(size || '').split(',').map((x) => Number(x.trim()));
+        const w = Number.isFinite(widthHeight[0]) ? Math.max(180, Math.min(960, widthHeight[0])) : 560;
+        const h = Number.isFinite(widthHeight[1]) ? Math.max(120, Math.min(720, widthHeight[1])) : 420;
+        const escapedUrl = escapeHtml(safeUrl);
+        return `<div class="bb-flash"><embed src="${escapedUrl}" width="${w}" height="${h}" type="application/x-shockwave-flash"></embed><div class="bb-attach-meta"><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer">打开 Flash 链接</a></div></div>`;
+      });
+
+      replaceNested(/\[list(?:=[^\]]+)?\]([\s\S]*?)\[\/list\]/gi, (_, body) => {
+        const items = String(body)
+          .split(/\[\*\]/)
+          .map((x) => x.trim())
+          .filter(Boolean);
+        if (items.length === 0) {
+          return '';
+        }
+        const htmlItems = items.map((x) => `<li>${x}</li>`).join('');
+        return `<ul class="bb-list">${htmlItems}</ul>`;
+      });
+
+      text = text
+        .replace(/\[table(?:=[^\]]*)?\]/gi, '<table class="bb-table"><tbody>')
+        .replace(/\[\/table\]/gi, '</tbody></table>')
+        .replace(/\[tr(?:=[^\]]*)?\]/gi, '<tr>')
+        .replace(/\[\/tr\]/gi, '</tr>')
+        .replace(/\[td(?:=[^\]]*)?\]/gi, '<td>')
+        .replace(/\[\/td\]/gi, '</td>')
+        .replace(/\[th(?:=[^\]]*)?\]/gi, '<th>')
+        .replace(/\[\/th\]/gi, '</th>');
+
+      replaceNested(/\[attach\](\d+)\[\/attach\]/gi, (_, aid) => renderAttachmentByAid(aid, false));
+      replaceNested(/\[attachimg\](\d+)\[\/attachimg\]/gi, (_, aid) => renderAttachmentByAid(aid, true));
 
       text = text.replace(/\n/g, '<br>');
       return text;

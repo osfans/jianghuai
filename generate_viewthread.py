@@ -145,6 +145,37 @@ def parse_posts_from_sql(sql_path: Path) -> List[Dict]:
     return posts
 
 
+def parse_attachments_from_sql(sql_path: Path) -> List[Dict]:
+    attachments: List[Dict] = []
+    collecting = False
+    stmt_lines: List[str] = []
+
+    with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            stripped = line.lstrip()
+
+            if not collecting and stripped.startswith("INSERT INTO `jh_attachments`"):
+                collecting = True
+                stmt_lines = [line]
+                if ";" in line:
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_attachments_from_statement(statement, attachments)
+                continue
+
+            if collecting:
+                stmt_lines.append(line)
+                if ";" in line:
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_attachments_from_statement(statement, attachments)
+
+    attachments.sort(key=lambda x: x["aid"])
+    return attachments
+
+
 def extract_posts_from_statement(statement: str, posts: List[Dict]) -> None:
     values_pos = statement.find("VALUES")
     if values_pos == -1:
@@ -160,6 +191,7 @@ def extract_posts_from_statement(statement: str, posts: List[Dict]) -> None:
             continue
 
         try:
+            pid = int(fields[0])
             tid = int(fields[2])
             author_token = fields[4]
             subject_token = fields[6]
@@ -174,6 +206,7 @@ def extract_posts_from_statement(statement: str, posts: List[Dict]) -> None:
 
         posts.append(
             {
+                "pid": pid,
                 "tid": tid,
                 "author": author,
                 "subject": subject,
@@ -183,10 +216,58 @@ def extract_posts_from_statement(statement: str, posts: List[Dict]) -> None:
         )
 
 
-def build_html(template_path: Path, posts: List[Dict]) -> str:
+def extract_attachments_from_statement(statement: str, attachments: List[Dict]) -> None:
+    values_pos = statement.find("VALUES")
+    if values_pos == -1:
+        return
+
+    values_sql = statement[values_pos + len("VALUES") :]
+    if values_sql.endswith(";"):
+        values_sql = values_sql[:-1]
+
+    for tuple_body in iter_insert_tuples(values_sql):
+        fields = split_sql_tuple(tuple_body)
+        if len(fields) < 16:
+            continue
+
+        try:
+            aid = int(fields[0])
+            tid = int(fields[1])
+            pid = int(fields[2])
+            dateline = int(fields[3])
+            filesize = int(fields[8])
+            downloads = int(fields[10])
+            isimage = int(fields[11])
+            filename_token = fields[6]
+            filetype_token = fields[7]
+            attachment_token = fields[9]
+        except ValueError:
+            continue
+
+        attachments.append(
+            {
+                "aid": aid,
+                "tid": tid,
+                "pid": pid,
+                "dateline": dateline,
+                "filename": decode_sql_string(filename_token),
+                "filetype": decode_sql_string(filetype_token),
+                "filesize": filesize,
+                "attachment": decode_sql_string(attachment_token),
+                "downloads": downloads,
+                "isimage": isimage,
+            }
+        )
+
+
+def build_html(template_path: Path, posts: List[Dict], attachments: List[Dict]) -> str:
     template = template_path.read_text(encoding="utf-8")
-    embedded = json.dumps(posts, ensure_ascii=False)
-    return template.replace("__EMBEDDED_POSTS_JSON__", embedded)
+    posts_json = json.dumps(posts, ensure_ascii=False)
+    attachments_json = json.dumps(attachments, ensure_ascii=False)
+    return (
+        template.replace("__EMBEDDED_POSTS_JSON__", posts_json)
+        .replace("__EMBEDDED_ATTACHMENTS_JSON__", attachments_json)
+    )
 
 
 def main() -> None:
@@ -220,14 +301,16 @@ def main() -> None:
       raise SystemExit(f"模板文件不存在: {template_path}")
 
     posts = parse_posts_from_sql(sql_path)
+    attachments = parse_attachments_from_sql(sql_path)
 
     html_out.parent.mkdir(parents=True, exist_ok=True)
 
-    html = build_html(template_path, posts)
+    html = build_html(template_path, posts, attachments)
     with html_out.open("w", encoding="utf-8") as f:
         f.write(html)
 
     print(f"解析帖子数: {len(posts)}")
+    print(f"解析附件数: {len(attachments)}")
     print(f"模板已读取: {template_path}")
     print(f"HTML 已生成: {html_out}")
 
