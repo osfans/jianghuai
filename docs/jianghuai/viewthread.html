@@ -166,7 +166,7 @@
 
     summary::-webkit-details-marker { display: none; }
 
-    .author {
+    .author, .subject {
       font-weight: 700;
       color: var(--ink);
     }
@@ -376,7 +376,7 @@
     function formatDate(ts) {
       const d = new Date(ts * 1000);
       if (Number.isNaN(d.getTime())) return String(ts);
-      return d.toLocaleDateString('zh-CN');
+      return d.toLocaleString('zh-CN');
     }
 
     function getTidSubject(tidRows) {
@@ -678,7 +678,7 @@
         const messageHtml = highlightMessageHtml(rawMessageHtml, activeKeyword);
         const badge = hasTidFilter
           ? `<span class="tid">#${floor}</span>`
-          : `<a class="tid" href="?tid=${encodeURIComponent(p.tid)}" target="_blank" rel="noopener noreferrer">tid=${escapeHtml(String(p.tid))}</a>`;
+          : `<span class="subject">${escapeHtml(String(p.subject))}</span><a class="tid" href="?tid=${encodeURIComponent(p.tid)}" target="_blank" rel="noopener noreferrer">tid=${escapeHtml(String(p.tid))}</a>`;
         return `
         <details class="post"${openAttr}>
           <summary>
