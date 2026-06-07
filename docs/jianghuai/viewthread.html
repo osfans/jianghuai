@@ -306,14 +306,13 @@
     <header>
       <h1 id="pageTitle">江淮漢韻</h1>
       <div id="searchWrap" class="search-row">
-        <input id="searchInput" type="search" placeholder="搜索全部文章：tid / 标题 / 内容" />
-        <button id="clearBtn" type="button">清空</button>
+        <input id="searchInput" type="search" placeholder="搜索全部文章" />
       </div>
       <div id="meta" class="meta"></div>
     </header>
 
     <main id="list" class="list"></main>
-    <p id="empty" class="empty" hidden>没有匹配结果。</p>
+    <p id="empty" class="empty" hidden>没有找到帖子。</p>
   </div>
 
   <script type="text/javascript" src="posts.json"></script>
@@ -321,7 +320,6 @@
   <script>
     const searchWrap = document.getElementById('searchWrap');
     const searchInput = document.getElementById('searchInput');
-    const clearBtn = document.getElementById('clearBtn');
     const meta = document.getElementById('meta');
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
@@ -330,7 +328,8 @@
     const SEARCH_DEBOUNCE_MS = 220;
 
     const params = new URLSearchParams(window.location.search);
-    const tidParam = Number(params.get('tid'));
+    const tidParam = Number(params.get('tid') || params.get('ptid') || '');
+    
     const hasTidFilter = Number.isFinite(tidParam) && tidParam > 0;
 
     const allPosts = rawPosts.map((row) => ({
@@ -376,7 +375,7 @@
     function formatDate(ts) {
       const d = new Date(ts * 1000);
       if (Number.isNaN(d.getTime())) return String(ts);
-      return d.toLocaleString('zh-CN');
+      return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-');
     }
 
     function getTidSubject(tidRows) {
@@ -425,11 +424,19 @@
     }
 
     function sanitizeUrl(raw) {
-      const value = String(raw || '').trim().replaceAll('&amp;', '&');
-      if (/^(https?:\/\/|ftp:\/\/|mailto:)/i.test(value)) {
+      const value = String(raw || '').trim()
+        .replaceAll('&amp;', '&')
+        .replaceAll('http://www.huaiyu.net/bb/', '')
+        .replaceAll('http://www.parasitus.org/jianghuai/', '')
+        .replaceAll('http://hiemsruls.ll060.84684.net/jianghuai/', '')
+        .replaceAll('http://hiemsruls.yl016.84684.net/jianghuai/', '')
+        .replace(/^viewthread.php/, '')
+        .replace(/^redirect.php/, '');
         return value;
-      }
-      return '';
+      // if (/^(https?:\/\/|ftp:\/\/|mailto:|\?)/i.test(value)) {
+      //   return value;
+      // }
+      // return '';
     }
 
     function sanitizeFontFamily(raw) {
@@ -754,18 +761,18 @@
 
       if (hasTidFilter) {
         const subject = getTidSubject(baseRows);
-        const title = subject || `tid=${tidParam}`;
+        const title = subject || `(无标题)`;
         pageTitle.textContent = title;
         document.title = title;
-        meta.textContent = `当前 tid=${tidParam}，共 ${rows.length} 条帖子（按日期升序）`;
+        meta.textContent = `共 ${rows.length} 条帖子`;
       } else if (keyword) {
         pageTitle.textContent = '江淮漢韻';
         document.title = '江淮漢韻';
-        meta.textContent = `全局搜索：${rows.length} 条结果`;
+        meta.textContent = `找到 ${rows.length} 条结果`;
       } else {
         pageTitle.textContent = '江淮漢韻';
         document.title = '江淮漢韻';
-        meta.textContent = `显示全部 ${rows.length} 条帖子（按日期升序）`;
+        meta.textContent = `全部 ${rows.length} 条帖子`;
       }
 
       if (rows.length === 0) {
@@ -791,11 +798,6 @@
         clearTimeout(debounceTimer);
       }
       debounceTimer = setTimeout(render, SEARCH_DEBOUNCE_MS);
-    });
-    clearBtn.addEventListener('click', () => {
-      searchInput.value = '';
-      render();
-      searchInput.focus();
     });
 
     render();
