@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>江淮漢韻</title>
   <style>
+    html {
+      scroll-behavior: smooth;
+    }
     :root {
       color-scheme: light dark;
       --bg-0: #f3f8fe;
@@ -329,6 +332,21 @@
 
     const params = new URLSearchParams(window.location.search);
     const tidParam = Number(params.get('tid') || params.get('ptid') || '');
+    const pidParam = Number(params.get('pid') || '');
+    if (pidParam > 0) {
+      window.onload = function() {
+          var element = document.getElementById(pidParam);
+          // element.scrollIntoView({behavior: "smooth"});
+          var top = element.getBoundingClientRect().top;
+          var headerheight = document.querySelector('header').offsetHeight;
+          var headerPaddingBottom = parseFloat(getComputedStyle(document.querySelector('header')).paddingBottom) || 0;
+          window.scrollBy({
+            top: top - headerheight - headerPaddingBottom, // 垂直方向增量
+            left: 0, // 水平方向增量
+            behavior: "smooth" // 平滑滚动
+          });
+      };
+    }
     
     const hasTidFilter = Number.isFinite(tidParam) && tidParam > 0;
 
@@ -339,7 +357,8 @@
       subject: row[3] || '',
       dateline: Number(row[4]) || 0,
       message: row[5] || ''
-    }));
+    }))
+    .filter((p) => p.tid != 3664); // 过滤掉 tid=3664 的帖子，因其内容过于庞大且无实际意义，严重影响性能
 
     const allAttachments = rawAttachments.map((row) => ({
       aid: Number(row[0]) || 0,
@@ -505,6 +524,8 @@
       replaceNested(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>');
       replaceNested(/\[i\]([\s\S]*?)\[\/i\]/gi, '<em>$1</em>');
       replaceNested(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>');
+      replaceNested(/\[center\]([\s\S]*?)\[\/center\]/gi, '<div style="text-align:center;">$1</div>');
+      replaceNested(/\[align=(left|right|center)\]([\s\S]*?)\[\/align\]/gi, '<div style="text-align:$1;">$2</div>');
       replaceNested(/\[quote(?:=[^\]]+)?\]([\s\S]*?)\[\/quote\]/gi, '<blockquote>$1</blockquote>');
 
       replaceNested(/\[color=([^\]]+)\]([\s\S]*?)\[\/color\]/gi, (_, color, content) => {
@@ -680,14 +701,14 @@
       const startFloor = renderedCount;
       const html = nextRows.map((p, idx) => {
         const floor = startFloor + idx + 1;
-        const openAttr = hasTidFilter ? ' open' : '';
+        const openAttr = (hasTidFilter || activeKeyword) ? ' open' : '';
         const rawMessageHtml = renderMessage(p.message || '');
         const messageHtml = highlightMessageHtml(rawMessageHtml, activeKeyword);
         const badge = hasTidFilter
           ? `<span class="tid">#${floor}</span>`
-          : `<span class="subject">${escapeHtml(String(p.subject))}</span><a class="tid" href="?tid=${encodeURIComponent(p.tid)}" target="_blank" rel="noopener noreferrer">tid=${escapeHtml(String(p.tid))}</a>`;
+          : `<span class="subject">${escapeHtml(String(p.subject))}</span><a class="tid" href="?tid=${encodeURIComponent(p.tid)}${String(p.subject) ? "" : "&pid=" + encodeURIComponent(p.pid)}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(p.tid))}</a>`;
         return `
-        <details class="post"${openAttr}>
+        <a id="${p.pid}"></a><details class="post"${openAttr}>
           <summary>
             <span class="author">${escapeHtml(p.author || '匿名')}</span>
             <span class="date">${escapeHtml(formatDate(p.dateline))}</span>
@@ -744,8 +765,8 @@
         rows = baseRows.filter((p) => p._searchText.includes(keyword));
       }
 
-      rows = [...rows].sort((a, b) => a.dateline - b.dateline);
-      if (!hasTidFilter) {
+      rows = [...rows].sort((a, b) => a.tid * 10000 + a.pid - b.tid * 10000 - b.pid);
+      if (!hasTidFilter && !keyword) {
         const seenTid = new Set();
         rows = rows.filter((p) => {
           const tid = Number(p.tid) || 0;
@@ -764,7 +785,7 @@
         const title = subject || `(无标题)`;
         pageTitle.textContent = title;
         document.title = title;
-        meta.textContent = `共 ${rows.length} 条帖子`;
+        meta.textContent = `${baseRows[0].author || ''} ${formatDate(baseRows[0].dateline)}${rows.length > 1 ? (rows.length - 1) + "，条跟帖" : ""}`;
       } else if (keyword) {
         pageTitle.textContent = '江淮漢韻';
         document.title = '江淮漢韻';
