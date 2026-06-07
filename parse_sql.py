@@ -253,14 +253,12 @@ def extract_attachments_from_statement(statement: str, attachments: List[List]) 
         )
 
 
-def build_html(template_path: Path, posts: List[List], attachments: List[List]) -> str:
-    template = template_path.read_text(encoding="utf-8")
+def dump_json(posts: List[List], attachments: List[List]):
     posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":"))
     attachments_json = json.dumps(attachments, ensure_ascii=False, separators=(",", ":"))
-    return (
-        template.replace("__EMBEDDED_POSTS_JSON__", posts_json)
-        .replace("__EMBEDDED_ATTACHMENTS_JSON__", attachments_json)
-    )
+    open("docs/jianghuai/posts.json", "w", encoding="utf-8").write("const rawPosts = " + posts_json + ";")
+    open("docs/jianghuai/attachments.json", "w", encoding="utf-8").write("const rawAttachments = " + attachments_json + ";")
+    print("已生成 posts.json 和 attachments.json")
 
 
 def main() -> None:
@@ -272,41 +270,16 @@ def main() -> None:
         default="tbhmsruls20190215.sql",
         help="输入 SQL 文件路径",
     )
-    parser.add_argument(
-      "--template",
-      default="docs/jianghuai/viewthread.template.html",
-      help="HTML 模板文件路径",
-    )
-    parser.add_argument(
-        "--html-out",
-        default="docs/jianghuai/viewthread.html",
-        help="输出 HTML 文件路径",
-    )
     args = parser.parse_args()
 
     sql_path = Path(args.sql)
-    template_path = Path(args.template)
-    html_out = Path(args.html_out)
 
-    if not sql_path.exists():
-        raise SystemExit(f"SQL 文件不存在: {sql_path}")
-    if not template_path.exists():
-      raise SystemExit(f"模板文件不存在: {template_path}")
-
-    posts = parse_posts_from_sql(sql_path)
-    attachments = parse_attachments_from_sql(sql_path)
-
-    html_out.parent.mkdir(parents=True, exist_ok=True)
-
-    html = build_html(template_path, posts, attachments)
-    with html_out.open("w", encoding="utf-8") as f:
-        f.write(html)
-
-    print(f"解析帖子数: {len(posts)}")
-    print(f"解析附件数: {len(attachments)}")
-    print(f"模板已读取: {template_path}")
-    print(f"HTML 已生成: {html_out}")
-
+    if sql_path.exists():
+        posts = parse_posts_from_sql(sql_path)
+        attachments = parse_attachments_from_sql(sql_path)
+        dump_json(posts, attachments)
+    else:
+        print(f"SQL 文件不存在: {sql_path}")
 
 if __name__ == "__main__":
     main()
