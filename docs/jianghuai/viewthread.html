@@ -295,6 +295,16 @@
       margin-bottom: 4px;
     }
 
+    .bb-attach-title img {
+      width: 16px;
+      height: 16px;
+      margin-right: 6px;
+      vertical-align: -3px;
+      border: none;
+      border-radius: 0;
+      display: inline;
+    }
+
     .bb-attach-meta {
       color: var(--muted);
       font-size: 12px;
@@ -583,6 +593,50 @@
       return `attachments/${encodeURI(path)}`;
     }
 
+    function getAttachmentIcon(att) {
+      const filetype = String(att.filetype || '').toLowerCase();
+      const filename = String(att.filename || '').toLowerCase();
+      const ext = (filename.match(/\.([a-z0-9]+)$/) || [])[1] || '';
+
+      if (filetype.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+        return 'image.gif';
+      }
+      if (filetype.includes('pdf') || ext === 'pdf') {
+        return 'pdf.gif';
+      }
+      if (['zip'].includes(ext) || filetype.includes('zip')) {
+        return 'zip.gif';
+      }
+      if (['rar', '7z'].includes(ext) || filetype.includes('rar') || filetype.includes('7z')) {
+        return 'rar.gif';
+      }
+      if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext) || filetype.includes('msword') || filetype.includes('officedocument') || filetype.includes('excel') || filetype.includes('powerpoint')) {
+        return 'msoffice.gif';
+      }
+      if (['txt', 'md', 'log', 'ini', 'conf', 'csv'].includes(ext) || filetype.startsWith('text/')) {
+        return 'text.gif';
+      }
+      if (['htm', 'html'].includes(ext) || filetype.includes('html')) {
+        return 'html.gif';
+      }
+      if (['swf'].includes(ext) || filetype.includes('shockwave-flash')) {
+        return 'flash.gif';
+      }
+      if (['torrent'].includes(ext) || filetype.includes('bittorrent')) {
+        return 'torrent.gif';
+      }
+      if (['rm', 'rmvb', 'ra'].includes(ext) || filetype.includes('real')) {
+        return 'real.gif';
+      }
+      if (['avi', 'mp4', 'mkv', 'mov', 'wmv', 'mp3', 'wav', 'flac'].includes(ext) || filetype.startsWith('audio/') || filetype.startsWith('video/')) {
+        return 'av.gif';
+      }
+      if (filetype.includes('octet-stream') || ['exe', 'bin', 'dll', 'so'].includes(ext)) {
+        return 'binary.gif';
+      }
+      return 'unknown.gif';
+    }
+
     function renderAttachmentByAid(aid, forceImage = false) {
       const id = Number(aid);
       const att = attachmentByAid.get(id);
@@ -605,7 +659,9 @@
         return `<div class="bb-attach"><a href="${href}" target="_blank" rel="noopener noreferrer"><img src="${href}" alt="${filename}" loading="lazy"></a><div class="bb-attach-meta">${filesize} / 下载次数 ${downloads}</div></div>`;
       }
 
-      return `<div class="bb-attach"><div class="bb-attach-title"><a href="${href}" download="${filename}" target="_blank" rel="noopener noreferrer">${filename}</a></div><div class="bb-attach-meta">${filesize} / 下载次数 ${downloads}</div></div>`;
+      const icon = getAttachmentIcon(att);
+      const iconSrc = `images/attachicons/${icon}`;
+      return `<div class="bb-attach"><div class="bb-attach-title"><a href="${href}" download="${filename}" target="_blank" rel="noopener noreferrer"><img src="${iconSrc}" alt="${escapeHtml(icon)}">${filename}</a></div><div class="bb-attach-meta">${filesize} / 下载次数 ${downloads}</div></div>`;
     }
 
     function renderMessage(raw) {
