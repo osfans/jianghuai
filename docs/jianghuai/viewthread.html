@@ -309,7 +309,7 @@
     <header>
       <h1 id="pageTitle">江淮漢韻</h1>
       <div id="searchWrap" class="search-row">
-        <input id="searchInput" type="search" placeholder="搜索全部文章" />
+        <input id="searchInput" type="search" placeholder="正在加载..." />
       </div>
       <div id="meta" class="meta"></div>
     </header>
@@ -326,8 +326,21 @@
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
     const pageTitle = document.getElementById('pageTitle');
+    const DEFAULT_SEARCH_PLACEHOLDER = '搜索全部文章';
+    const LOADING_SEARCH_PLACEHOLDER = '正在加载...';
     const PAGE_SIZE = 80;
     const SEARCH_DEBOUNCE_MS = 220;
+
+    function setSearchLoadingState(isLoading) {
+      if (isLoading) {
+        searchInput.setAttribute('placeholder', LOADING_SEARCH_PLACEHOLDER);
+        searchInput.disabled = true;
+        return;
+      }
+
+      searchInput.setAttribute('placeholder', DEFAULT_SEARCH_PLACEHOLDER);
+      searchInput.disabled = false;
+    }
 
     const params = new URLSearchParams(window.location.search);
     const tidParam = Number(params.get('tid') || params.get('ptid') || '');
@@ -356,8 +369,7 @@
       subject: row[3] || '',
       dateline: Number(row[4]) || 0,
       message: row[5] || ''
-    }))
-    .filter((p) => p.tid != 3664); // 过滤掉 tid=3664 的帖子，因其内容过于庞大且无实际意义，严重影响性能
+    }));
 
     const allAttachments = rawAttachments.map((row) => ({
       aid: Number(row[0]) || 0,
@@ -705,12 +717,13 @@
         const messageHtml = highlightMessageHtml(rawMessageHtml, activeKeyword);
         const badge = hasTidFilter
           ? `<span class="tid">#${floor}</span>`
-          : `<span class="subject">${escapeHtml(String(p.subject))}</span><a class="tid" href="?tid=${encodeURIComponent(p.tid)}${String(p.subject) ? "" : "&pid=" + encodeURIComponent(p.pid)}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(p.tid))}</a>`;
+          : `<a class="tid" href="?tid=${encodeURIComponent(p.tid)}${String(p.subject) ? "" : "&pid=" + encodeURIComponent(p.pid)}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(p.tid))}</a>`;
         return `
         <a id="${p.pid}"></a><details class="post"${openAttr}>
           <summary>
             <span class="author">${escapeHtml(p.author || '匿名')}</span>
             <span class="date">${escapeHtml(formatDate(p.dateline))}</span>
+            <span class="subject">${escapeHtml(hasTidFilter && floor == 1 ? "" : String(p.subject))}</span>
             ${badge}
           </summary>
           <div class="message">${messageHtml}</div>
@@ -764,7 +777,6 @@
         rows = baseRows.filter((p) => p._searchText.includes(keyword));
       }
 
-      rows = [...rows].sort((a, b) => a.tid * 10000 + a.pid - b.tid * 10000 - b.pid);
       if (!hasTidFilter && !keyword) {
         const seenTid = new Set();
         rows = rows.filter((p) => {
@@ -808,6 +820,8 @@
       setupLazyLoad();
     }
 
+    setSearchLoadingState(true);
+
     if (hasTidFilter) {
       searchWrap.hidden = true;
     }
@@ -821,6 +835,7 @@
     });
 
     render();
+    setSearchLoadingState(false);
   </script>
 </body>
 </html>

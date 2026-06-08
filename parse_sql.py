@@ -122,6 +122,7 @@ def parse_posts_from_sql(sql_path: Path) -> List[List]:
 
     with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
         for line in f:
+            line = line.strip()
             stripped = line.lstrip()
 
             if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_posts`"):
@@ -136,13 +137,13 @@ def parse_posts_from_sql(sql_path: Path) -> List[List]:
 
             if collecting:
                 stmt_lines.append(line)
-                if ";" in line:
+                if line.endswith(";"):
                     collecting = False
                     statement = "".join(stmt_lines)
                     stmt_lines = []
                     extract_posts_from_statement(statement, posts)
 
-    posts.sort(key=lambda x: x[4])
+    posts.sort(key=lambda x: (x[1], x[4]))
     return posts
 
 
@@ -196,6 +197,8 @@ def extract_posts_from_statement(statement: str, posts: List[List]) -> None:
             tid = int(fields[2])
             author_token = fields[4]
             subject_token = fields[6]
+            if author_token in ["'jjass0012332'",]:
+                break
             dateline = int(fields[7])
             message_token = fields[8].replace("\\r", "")
         except ValueError:
@@ -255,12 +258,12 @@ def extract_attachments_from_statement(statement: str, attachments: List[List]) 
 
 
 def dump_json(posts: List[List], attachments: List[List]):
-    posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":"))
+    posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":")).replace("&nbsp;", " ")
     attachments_json = json.dumps(attachments, ensure_ascii=False, separators=(",", ":"))
     f = open("docs/jianghuai/data.json", "w", encoding="utf-8")
     f.write("const rawPosts = " + posts_json + ";\n")
     f.write("const rawAttachments = " + attachments_json + ";\n")
-    print("已生成 data.json")
+    print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}")
 
 
 def main() -> None:
@@ -269,7 +272,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--sql",
-        default="tbhmsruls20190215.sql",
+        default="localhost.sql",
         help="输入 SQL 文件路径",
     )
     parser.add_argument(
