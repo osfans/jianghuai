@@ -194,6 +194,7 @@ def extract_posts_from_statement(statement: str, posts: List[List]) -> None:
 
         try:
             pid = int(fields[0])
+            fid = int(fields[1])
             tid = int(fields[2])
             author_token = fields[4]
             subject_token = fields[6]
@@ -208,8 +209,8 @@ def extract_posts_from_statement(statement: str, posts: List[List]) -> None:
         subject = decode_sql_string(subject_token)
         message = decode_sql_string(message_token)
 
-        # [pid, tid, author, subject, dateline, message]
-        posts.append([pid, tid, author, subject, dateline, message])
+        # [pid, tid, author, subject, dateline, message, fid]
+        posts.append([pid, tid, author, subject, dateline, message, fid])
 
 
 def extract_attachments_from_statement(statement: str, attachments: List[List]) -> None:
@@ -257,13 +258,74 @@ def extract_attachments_from_statement(statement: str, attachments: List[List]) 
         )
 
 
-def dump_json(posts: List[List], attachments: List[List]):
+def parse_forums_from_sql(sql_path: Path) -> List[List]:
+    forums: List[List] = []
+    collecting = False
+    stmt_lines: List[str] = []
+
+    with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            stripped = line.lstrip()
+
+            if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_forums`"):
+                collecting = True
+                stmt_lines = [line.strip()]
+                if ";" in line:
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_forums_from_statement(statement, forums)
+                continue
+
+            if collecting:
+                stmt_lines.append(line.strip())
+                if ";" in line:
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_forums_from_statement(statement, forums)
+
+    forums.sort(key=lambda x: x[0])
+    return forums
+
+
+def extract_forums_from_statement(statement: str, forums: List[List]) -> None:
+    values_pos = statement.find("VALUES")
+    if values_pos == -1:
+        return
+
+    values_sql = statement[values_pos + len("VALUES"):]
+    if values_sql.endswith(";"):
+        values_sql = values_sql[:-1]
+
+    for tuple_body in iter_insert_tuples(values_sql):
+        fields = split_sql_tuple(tuple_body)
+        if len(fields) < 4:
+            continue
+
+        try:
+            fid = int(fields[0])
+            forum_type = decode_sql_string(fields[2])
+            name = decode_sql_string(fields[3])
+        except ValueError:
+            continue
+
+        if forum_type != "forum":
+            continue
+
+        # [fid, name]
+        forums.append([fid, name])
+
+
+def dump_json(posts: List[List], attachments: List[List], forums: List[List]):
     posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":")).replace("&nbsp;", " ")
     attachments_json = json.dumps(attachments, ensure_ascii=False, separators=(",", ":"))
+    forums_json = json.dumps(forums, ensure_ascii=False, separators=(",", ":"))
     f = open("docs/jianghuai/data.json", "w", encoding="utf-8")
     f.write("const rawPosts = " + posts_json + ";\n")
     f.write("const rawAttachments = " + attachments_json + ";\n")
-    print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}")
+    f.write("const rawForums = " + forums_json + ";\n")
+    print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}, forums*{len(forums)}")
 
 
 def main() -> None:
@@ -289,7 +351,8 @@ def main() -> None:
     if sql_path.exists():
         posts = parse_posts_from_sql(sql_path)
         attachments = parse_attachments_from_sql(sql_path)
-        dump_json(posts, attachments)
+        forums = parse_forums_from_sql(sql_path)
+        dump_json(posts, attachments, forums)
     else:
         print(f"SQL 文件不存在: {sql_path}")
 

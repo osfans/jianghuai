@@ -104,6 +104,27 @@
       gap: 10px;
     }
 
+    .forum-row {
+      margin-top: 8px;
+    }
+
+    select#forumSelect {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--input-bg);
+      outline: none;
+      cursor: pointer;
+    }
+
+    select#forumSelect:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px #4ca3ff30;
+    }
+
     input[type="search"] {
       width: 100%;
       border: 1px solid var(--line);
@@ -311,6 +332,9 @@
       <div id="searchWrap" class="search-row">
         <input id="searchInput" type="search" placeholder="正在加载..." />
       </div>
+      <div id="forumWrap" class="forum-row">
+        <select id="forumSelect"><option value="0">全部版块</option></select>
+      </div>
       <div id="meta" class="meta"></div>
     </header>
 
@@ -322,11 +346,13 @@
   <script>
     const searchWrap = document.getElementById('searchWrap');
     const searchInput = document.getElementById('searchInput');
+    const forumWrap = document.getElementById('forumWrap');
+    const forumSelect = document.getElementById('forumSelect');
     const meta = document.getElementById('meta');
     const list = document.getElementById('list');
     const empty = document.getElementById('empty');
     const pageTitle = document.getElementById('pageTitle');
-    const DEFAULT_SEARCH_PLACEHOLDER = '搜索全部文章';
+    const DEFAULT_SEARCH_PLACEHOLDER = '搜索全文';
     const LOADING_SEARCH_PLACEHOLDER = '正在加载...';
     const PAGE_SIZE = 80;
     const SEARCH_DEBOUNCE_MS = 220;
@@ -362,13 +388,23 @@
     
     const hasTidFilter = Number.isFinite(tidParam) && tidParam > 0;
 
+    const forumsMap = new Map((rawForums || []).map((r) => [Number(r[0]), String(r[1] || '')]));
+    // 填充版块下拉
+    (rawForums || []).forEach((r) => {
+      const opt = document.createElement('option');
+      opt.value = String(r[0]);
+      opt.textContent = String(r[1] || r[0]);
+      forumSelect.appendChild(opt);
+    });
+
     const allPosts = rawPosts.map((row) => ({
       pid: Number(row[0]) || 0,
       tid: Number(row[1]) || 0,
       author: row[2] || '',
       subject: row[3] || '',
       dateline: Number(row[4]) || 0,
-      message: row[5] || ''
+      message: row[5] || '',
+      fid: Number(row[6]) || 0
     }));
 
     const allAttachments = rawAttachments.map((row) => ({
@@ -716,7 +752,7 @@
         const rawMessageHtml = renderMessage(p.message || '');
         const messageHtml = highlightMessageHtml(rawMessageHtml, activeKeyword);
         const badge = hasTidFilter
-          ? `<span class="tid">#${floor}</span>`
+          ? `<span class="tid">${floor==1?"楼主":(floor==2?"沙发":(floor==3?"板凳":(floor==4?"地板":"#" + floor)))}</span>`
           : `<a class="tid" href="?tid=${encodeURIComponent(p.tid)}${String(p.subject) ? "" : "&pid=" + encodeURIComponent(p.pid)}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(p.tid))}</a>`;
         return `
         <a id="${p.pid}"></a><details class="post"${openAttr}>
@@ -768,13 +804,18 @@
     function render() {
       const keywordText = searchInput.value.trim();
       const keyword = keywordText.toLowerCase();
+      const selectedFid = Number(forumSelect.value) || 0;
       const baseRows = hasTidFilter ? normalizedPosts.filter((p) => p.tid === tidParam) : normalizedPosts;
       let rows = baseRows;
 
       activeKeyword = hasTidFilter ? '' : keywordText;
 
+      if (!hasTidFilter && selectedFid > 0) {
+        rows = rows.filter((p) => p.fid === selectedFid);
+      }
+
       if (!hasTidFilter && keyword) {
-        rows = baseRows.filter((p) => p._searchText.includes(keyword));
+        rows = rows.filter((p) => p._searchText.includes(keyword));
       }
 
       if (!hasTidFilter && !keyword) {
@@ -794,13 +835,16 @@
       if (hasTidFilter) {
         const subject = getTidSubject(baseRows);
         const title = subject || `(无标题)`;
+        const forumName = forumsMap.get(baseRows[0] ? baseRows[0].fid : 0) || '';
         pageTitle.textContent = title;
         document.title = title;
-        meta.textContent = `${baseRows[0].author || ''} ${formatDate(baseRows[0].dateline)}${rows.length > 1 ? "，" + (rows.length - 1) + "条跟帖" : ""}`;
-      } else if (keyword) {
+        const forumBadge = forumName ? ` · ${forumName}` : '';
+        meta.textContent = `${baseRows[0].author || ''} ${formatDate(baseRows[0].dateline)}${rows.length > 1 ? "，" + (rows.length - 1) + "条跟帖" : ""}${forumBadge}`;
+      } else if (keyword || selectedFid > 0) {
+        const forumLabel = selectedFid > 0 ? `【${forumsMap.get(selectedFid) || selectedFid}】` : '';
         pageTitle.textContent = '江淮漢韻';
         document.title = '江淮漢韻';
-        meta.textContent = `找到 ${rows.length} 条结果`;
+        meta.textContent = `${forumLabel}找到 ${rows.length} 条结果`;
       } else {
         pageTitle.textContent = '江淮漢韻';
         document.title = '江淮漢韻';
@@ -824,6 +868,7 @@
 
     if (hasTidFilter) {
       searchWrap.hidden = true;
+      forumWrap.hidden = true;
     }
 
     let debounceTimer = null;
@@ -832,6 +877,13 @@
         clearTimeout(debounceTimer);
       }
       debounceTimer = setTimeout(render, SEARCH_DEBOUNCE_MS);
+    });
+
+    forumSelect.addEventListener('change', () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      render();
     });
 
     render();
