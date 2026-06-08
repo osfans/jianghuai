@@ -257,9 +257,10 @@ def extract_attachments_from_statement(statement: str, attachments: List[List]) 
 def dump_json(posts: List[List], attachments: List[List]):
     posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":"))
     attachments_json = json.dumps(attachments, ensure_ascii=False, separators=(",", ":"))
-    open("docs/jianghuai/posts.json", "w", encoding="utf-8").write("const rawPosts = " + posts_json + ";")
-    open("docs/jianghuai/attachments.json", "w", encoding="utf-8").write("const rawAttachments = " + attachments_json + ";")
-    print("已生成 posts.json 和 attachments.json")
+    f = open("docs/jianghuai/data.json", "w", encoding="utf-8")
+    f.write("const rawPosts = " + posts_json + ";\n")
+    f.write("const rawAttachments = " + attachments_json + ";\n")
+    print("已生成 data.json")
 
 
 def main() -> None:
