@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>附件跳转</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Noto Serif SC", "Source Han Serif SC", serif;
+      background: #f3f8fe;
+      color: #23384f;
+    }
+
+    .panel {
+      width: min(680px, 92vw);
+      border: 1px solid #b3c6df;
+      border-radius: 8px;
+      background: #f8fbff;
+      padding: 18px 20px;
+      box-shadow: 0 6px 16px #93a8be2b;
+      line-height: 1.7;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    p {
+      margin: 0;
+      color: #667b91;
+      word-break: break-all;
+    }
+
+    a {
+      color: #5f89b7;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1 id="title">正在跳转附件...</h1>
+    <p id="msg">请稍候。</p>
+  </div>
+
+  <script type="text/javascript" src="data.json"></script>
+  <script>
+    const titleEl = document.getElementById('title');
+    const msgEl = document.getElementById('msg');
+
+    function showError(text) {
+      titleEl.textContent = '附件跳转失败';
+      msgEl.textContent = text;
+    }
+
+    function getAidFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const aid = Number(params.get('aid') || '');
+      return Number.isFinite(aid) && aid > 0 ? aid : 0;
+    }
+
+    function attachmentHref(path) {
+      const normalized = String(path || '')
+        .replaceAll('\\\\', '/')
+        .replace(/^\/+/, '');
+      if (!normalized) {
+        return '';
+      }
+      return `attachments/${encodeURI(normalized)}`;
+    }
+
+    function run() {
+      const aid = getAidFromQuery();
+      if (!aid) {
+        showError('缺少有效的 aid 参数。示例：attachment.html?aid=123');
+        return;
+      }
+
+      const list = Array.isArray(rawAttachments) ? rawAttachments : [];
+      const row = list.find((item) => Number(item[0]) === aid);
+      if (!row) {
+        showError(`未找到 aid=${aid} 对应的附件记录。`);
+        return;
+      }
+
+      const href = attachmentHref(row[7]);
+      const filename = String(row[4] || `附件 ${aid}`);
+
+      if (!href) {
+        showError(`aid=${aid} 的附件路径无效。`);
+        return;
+      }
+
+      titleEl.textContent = '附件已就绪';
+      msgEl.innerHTML = `自动下载已关闭，请手动打开：<a href="${href}" download="${filename}" rel="noopener noreferrer">${filename}</a>`;
+    }
+
+    run();
+  </script>
+</body>
+</html>
