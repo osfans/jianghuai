@@ -195,6 +195,34 @@
       color: var(--ink);
     }
 
+    .summary-main {
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 10px;
+      align-items: start;
+      min-width: 0;
+    }
+
+    .summary-lines {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .nickname {
+      font-weight: 700;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .subject {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .date {
       color: var(--muted);
       font-size: 13px;
@@ -400,12 +428,18 @@
     const allPosts = rawPosts.map((row) => ({
       pid: Number(row[0]) || 0,
       tid: Number(row[1]) || 0,
-      author: row[2] || '',
+      authorid: Number(row[2]) || 0,
       subject: row[3] || '',
       dateline: Number(row[4]) || 0,
       message: row[5] || '',
       fid: Number(row[6]) || 0
     }));
+
+    const usersMap = new Map((rawUsers || []).map((row) => [Number(row[0]) || 0, {
+      uid: Number(row[0]) || 0,
+      username: String(row[1] || ''),
+      nickname: String(row[2] || ''),
+    }]));
 
     const allAttachments = rawAttachments.map((row) => ({
       aid: Number(row[0]) || 0,
@@ -503,6 +537,25 @@
       //   return value;
       // }
       // return '';
+    }
+
+    function getUserInfo(authorid) {
+      const user = usersMap.get(Number(authorid) || 0);
+      if (!user) {
+        return {
+          username: '',
+          nickname: '',
+          displayName: '',
+        };
+      }
+
+      const nickname = String(user.nickname || '').trim();
+      const username = String(user.username || '').trim();
+      return {
+        username,
+        nickname,
+        displayName: nickname || username || '匿名',
+      };
     }
 
     function sanitizeFontFamily(raw) {
@@ -751,15 +804,16 @@
         const openAttr = (hasTidFilter || activeKeyword) ? ' open' : '';
         const rawMessageHtml = renderMessage(p.message || '');
         const messageHtml = highlightMessageHtml(rawMessageHtml, activeKeyword);
+        const user = getUserInfo(p.authorid);
         const badge = hasTidFilter
           ? `<span class="tid">${floor==1?"楼主":(floor==2?"沙发":(floor==3?"板凳":(floor==4?"地板":"#" + floor)))}</span>`
           : `<a class="tid" href="?tid=${encodeURIComponent(p.tid)}${String(p.subject) ? "" : "&pid=" + encodeURIComponent(p.pid)}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(p.tid))}</a>`;
         return `
         <a id="${p.pid}"></a><details class="post"${openAttr}>
           <summary>
-            <span class="author">${escapeHtml(p.author || '匿名')}</span>
-            <span class="date">${escapeHtml(formatDate(p.dateline))}</span>
-            <span class="subject">${escapeHtml(hasTidFilter && floor == 1 ? "" : String(p.subject))}</span>
+              <span class="nickname">${escapeHtml(user.displayName)}</span>
+              <span class="date">${escapeHtml(formatDate(p.dateline))}</span>
+              <span class="subject">${escapeHtml(hasTidFilter && floor == 1 ? "" : String(p.subject))}</span>
             ${badge}
           </summary>
           <div class="message">${messageHtml}</div>
@@ -836,10 +890,11 @@
         const subject = getTidSubject(baseRows);
         const title = subject || `(无标题)`;
         const forumName = forumsMap.get(baseRows[0] ? baseRows[0].fid : 0) || '';
+        const firstUser = getUserInfo(baseRows[0] ? baseRows[0].authorid : 0);
         pageTitle.textContent = title;
         document.title = title;
         const forumBadge = forumName ? ` · ${forumName}` : '';
-        meta.textContent = `${baseRows[0].author || ''} ${formatDate(baseRows[0].dateline)}${rows.length > 1 ? "，" + (rows.length - 1) + "条跟帖" : ""}${forumBadge}`;
+        meta.textContent = `${firstUser.displayName} ${formatDate(baseRows[0].dateline)}${rows.length > 1 ? "，" + (rows.length - 1) + "条跟帖" : ""}${forumBadge}`;
       } else if (keyword || selectedFid > 0) {
         const forumLabel = selectedFid > 0 ? `【${forumsMap.get(selectedFid) || selectedFid}】` : '';
         pageTitle.textContent = '江淮漢韻';

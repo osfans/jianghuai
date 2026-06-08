@@ -128,7 +128,7 @@ def parse_posts_from_sql(sql_path: Path) -> List[List]:
             if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_posts`"):
                 collecting = True
                 stmt_lines = [line]
-                if ";" in line:
+                if line.endswith(";"):
                     collecting = False
                     statement = "".join(stmt_lines)
                     stmt_lines = []
@@ -154,12 +154,13 @@ def parse_attachments_from_sql(sql_path: Path) -> List[List]:
 
     with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
         for line in f:
+            line = line.strip()
             stripped = line.lstrip()
 
             if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_attachments`"):
                 collecting = True
                 stmt_lines = [line]
-                if ";" in line:
+                if line.endswith(";"):
                     collecting = False
                     statement = "".join(stmt_lines)
                     stmt_lines = []
@@ -168,7 +169,7 @@ def parse_attachments_from_sql(sql_path: Path) -> List[List]:
 
             if collecting:
                 stmt_lines.append(line)
-                if ";" in line:
+                if line.endswith(";"):
                     collecting = False
                     statement = "".join(stmt_lines)
                     stmt_lines = []
@@ -176,6 +177,70 @@ def parse_attachments_from_sql(sql_path: Path) -> List[List]:
 
     attachments.sort(key=lambda x: x[0])
     return attachments
+
+
+def parse_members_from_sql(sql_path: Path) -> List[List]:
+    members: List[List] = []
+    collecting = False
+    stmt_lines: List[str] = []
+
+    with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            line = line.strip()
+            stripped = line.lstrip()
+
+            if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_members`"):
+                collecting = True
+                stmt_lines = [line.strip()]
+                if line.endswith(";"):
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_members_from_statement(statement, members)
+                continue
+
+            if collecting:
+                stmt_lines.append(line.strip())
+                if line.endswith(";"):
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_members_from_statement(statement, members)
+
+    members.sort(key=lambda x: x[0])
+    return members
+
+
+def parse_memberfields_from_sql(sql_path: Path) -> List[List]:
+    memberfields: List[List] = []
+    collecting = False
+    stmt_lines: List[str] = []
+
+    with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            line = line.strip()
+            stripped = line.lstrip()
+
+            if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_memberfields`"):
+                collecting = True
+                stmt_lines = [line.strip()]
+                if line.endswith(";"):
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_memberfields_from_statement(statement, memberfields)
+                continue
+
+            if collecting:
+                stmt_lines.append(line.strip())
+                if line.endswith(";"):
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_memberfields_from_statement(statement, memberfields)
+
+    memberfields.sort(key=lambda x: x[0])
+    return memberfields
 
 
 def extract_posts_from_statement(statement: str, posts: List[List]) -> None:
@@ -196,21 +261,86 @@ def extract_posts_from_statement(statement: str, posts: List[List]) -> None:
             pid = int(fields[0])
             fid = int(fields[1])
             tid = int(fields[2])
-            author_token = fields[4]
+            authorid = int(fields[5])
             subject_token = fields[6]
-            if author_token in ["'jjass0012332'",]:
-                break
             dateline = int(fields[7])
             message_token = fields[8].replace("\\r", "")
         except ValueError:
             continue
 
-        author = decode_sql_string(author_token)
         subject = decode_sql_string(subject_token)
         message = decode_sql_string(message_token)
 
-        # [pid, tid, author, subject, dateline, message, fid]
-        posts.append([pid, tid, author, subject, dateline, message, fid])
+        # [pid, tid, authorid, subject, dateline, message, fid]
+        posts.append([pid, tid, authorid, subject, dateline, message, fid])
+
+
+def extract_members_from_statement(statement: str, members: List[List]) -> None:
+    values_pos = statement.find("VALUES")
+    if values_pos == -1:
+        return
+
+    values_sql = statement[values_pos + len("VALUES"):]
+    if values_sql.endswith(";"):
+        values_sql = values_sql[:-1]
+
+    for tuple_body in iter_insert_tuples(values_sql):
+        fields = split_sql_tuple(tuple_body)
+        if len(fields) < 2:
+            continue
+
+        try:
+            uid = int(fields[0])
+            if int(fields[15]) + int(fields[16]) == 0:
+                continue
+            username = decode_sql_string(fields[1])
+        except ValueError:
+            continue
+
+        # [uid, username]
+        members.append([uid, username])
+
+
+def extract_memberfields_from_statement(statement: str, memberfields: List[List]) -> None:
+    values_pos = statement.find("VALUES")
+    if values_pos == -1:
+        return
+
+    values_sql = statement[values_pos + len("VALUES"):]
+    if values_sql.endswith(";"):
+        values_sql = values_sql[:-1]
+
+    for tuple_body in iter_insert_tuples(values_sql):
+        fields = split_sql_tuple(tuple_body)
+        if len(fields) < 17:
+            continue
+
+        try:
+            uid = int(fields[0])
+            nickname = decode_sql_string(fields[1])
+            avatar = decode_sql_string(fields[12])
+            sightml = decode_sql_string(fields[16]).replace("\\r", "")
+        except ValueError:
+            continue
+
+        # [uid, nickname, avatar, sightml]
+        memberfields.append([uid, nickname, avatar, sightml])
+
+
+def merge_users(members: List[List], memberfields: List[List]) -> List[List]:
+    fields_map = {row[0]: row for row in memberfields}
+    users: List[List] = []
+
+    for uid, username in members:
+        f = fields_map.get(uid)
+        nickname = f[1] if f else ""
+        avatar = f[2] if f else ""
+        sightml = f[3] if f else ""
+        # [uid, username, nickname, avatar, sightml]
+        users.append([uid, username, nickname])
+
+    users.sort(key=lambda x: x[0])
+    return users
 
 
 def extract_attachments_from_statement(statement: str, attachments: List[List]) -> None:
@@ -265,12 +395,13 @@ def parse_forums_from_sql(sql_path: Path) -> List[List]:
 
     with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
         for line in f:
+            line = line.strip()
             stripped = line.lstrip()
 
             if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_forums`"):
                 collecting = True
                 stmt_lines = [line.strip()]
-                if ";" in line:
+                if line.endswith(";"):
                     collecting = False
                     statement = "".join(stmt_lines)
                     stmt_lines = []
@@ -279,7 +410,7 @@ def parse_forums_from_sql(sql_path: Path) -> List[List]:
 
             if collecting:
                 stmt_lines.append(line.strip())
-                if ";" in line:
+                if line.endswith(";"):
                     collecting = False
                     statement = "".join(stmt_lines)
                     stmt_lines = []
@@ -317,15 +448,17 @@ def extract_forums_from_statement(statement: str, forums: List[List]) -> None:
         forums.append([fid, name])
 
 
-def dump_json(posts: List[List], attachments: List[List], forums: List[List]):
+def dump_json(posts: List[List], attachments: List[List], forums: List[List], users: List[List]):
     posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":")).replace("&nbsp;", " ")
     attachments_json = json.dumps(attachments, ensure_ascii=False, separators=(",", ":"))
     forums_json = json.dumps(forums, ensure_ascii=False, separators=(",", ":"))
+    users_json = json.dumps(users, ensure_ascii=False, separators=(",", ":")).replace("&nbsp;", " ")
     f = open("docs/jianghuai/data.json", "w", encoding="utf-8")
     f.write("const rawPosts = " + posts_json + ";\n")
     f.write("const rawAttachments = " + attachments_json + ";\n")
     f.write("const rawForums = " + forums_json + ";\n")
-    print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}, forums*{len(forums)}")
+    f.write("const rawUsers = " + users_json + ";\n")
+    print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}, forums*{len(forums)}, users*{len(users)}")
 
 
 def main() -> None:
@@ -352,7 +485,10 @@ def main() -> None:
         posts = parse_posts_from_sql(sql_path)
         attachments = parse_attachments_from_sql(sql_path)
         forums = parse_forums_from_sql(sql_path)
-        dump_json(posts, attachments, forums)
+        members = parse_members_from_sql(sql_path)
+        memberfields = parse_memberfields_from_sql(sql_path)
+        users = merge_users(members, memberfields)
+        dump_json(posts, attachments, forums, users)
     else:
         print(f"SQL 文件不存在: {sql_path}")
 
