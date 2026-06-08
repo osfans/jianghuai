@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import List
 
+prefix = ""
 
 def decode_sql_string(token: str) -> str:
     if len(token) >= 2 and token[0] == "'" and token[-1] == "'":
@@ -123,7 +124,7 @@ def parse_posts_from_sql(sql_path: Path) -> List[List]:
         for line in f:
             stripped = line.lstrip()
 
-            if not collecting and stripped.startswith("INSERT INTO `jh_posts`"):
+            if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_posts`"):
                 collecting = True
                 stmt_lines = [line]
                 if ";" in line:
@@ -154,7 +155,7 @@ def parse_attachments_from_sql(sql_path: Path) -> List[List]:
         for line in f:
             stripped = line.lstrip()
 
-            if not collecting and stripped.startswith("INSERT INTO `jh_attachments`"):
+            if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_attachments`"):
                 collecting = True
                 stmt_lines = [line]
                 if ";" in line:
@@ -263,14 +264,21 @@ def dump_json(posts: List[List], attachments: List[List]):
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-      description="从 SQL 中提取 jh_posts 并基于模板生成 viewthread.html（内嵌 JSON）"
+      description="从 SQL 中提取 posts 并基于模板生成 viewthread.html（内嵌 JSON）"
     )
     parser.add_argument(
         "--sql",
         default="tbhmsruls20190215.sql",
         help="输入 SQL 文件路径",
     )
+    parser.add_argument(
+        "--prefix",
+        default="jh",
+        help="输入 posts/attachments 前缀",
+    )
     args = parser.parse_args()
+    global prefix
+    prefix = args.prefix
 
     sql_path = Path(args.sql)
 
