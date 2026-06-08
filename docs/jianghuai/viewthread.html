@@ -661,7 +661,7 @@
 
       const icon = getAttachmentIcon(att);
       const iconSrc = `images/attachicons/${icon}`;
-      return `<div class="bb-attach"><div class="bb-attach-title"><a href="${href}" download="${filename}" target="_blank" rel="noopener noreferrer"><img src="${iconSrc}" alt="${escapeHtml(icon)}">${filename}</a></div><div class="bb-attach-meta">${filesize} / 下载次数 ${downloads}</div></div>`;
+      return `<div class="bb-attach"><div class="bb-attach-title"><a href="${href}" download="${filename}" target="_blank" rel="noopener noreferrer"><img src="${iconSrc}" alt="${escapeHtml(icon)}" style="vertical-align: bottom">${filename}</a></div><div class="bb-attach-meta">${filesize} / 下载次数 ${downloads}</div></div>`;
     }
 
     function renderMessage(raw) {
