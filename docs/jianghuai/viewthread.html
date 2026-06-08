@@ -602,10 +602,10 @@
       }
 
       if (isImage) {
-        return `<div class="bb-attach"><a href="${href}" target="_blank" rel="noopener noreferrer"><img src="${href}" alt="${filename}" loading="lazy"></a><div class="bb-attach-meta">${filetype} / ${filesize} / 下载 ${downloads}</div></div>`;
+        return `<div class="bb-attach"><a href="${href}" target="_blank" rel="noopener noreferrer"><img src="${href}" alt="${filename}" loading="lazy"></a><div class="bb-attach-meta">${filesize} / 下载次数 ${downloads}</div></div>`;
       }
 
-      return `<div class="bb-attach"><div class="bb-attach-title"><a href="${href}" target="_blank" rel="noopener noreferrer">${filename}</a></div><div class="bb-attach-meta">${filetype} / ${filesize} / 下载 ${downloads}</div></div>`;
+      return `<div class="bb-attach"><div class="bb-attach-title"><a href="${href}" download="${filename}" target="_blank" rel="noopener noreferrer">${filename}</a></div><div class="bb-attach-meta">${filesize} / 下载次数 ${downloads}</div></div>`;
     }
 
     function renderMessage(raw) {

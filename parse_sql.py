@@ -484,6 +484,12 @@ def main() -> None:
     if sql_path.exists():
         posts = parse_posts_from_sql(sql_path)
         attachments = parse_attachments_from_sql(sql_path)
+        for a in attachments:
+            for b in posts:
+                if a[2] == b[0]:
+                    attach = f"[attach]{a[0]}[/attach]"
+                    if attach not in b[5]:
+                        b[5] += attach
         forums = parse_forums_from_sql(sql_path)
         members = parse_members_from_sql(sql_path)
         memberfields = parse_memberfields_from_sql(sql_path)
