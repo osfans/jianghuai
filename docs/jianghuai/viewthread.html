@@ -610,6 +610,8 @@
 
     function renderMessage(raw) {
       let text = escapeHtml(String(raw || '')).replace(/\r\n?/g, '\n');
+      //{':cool:', ':kiss:', ':lol:', ':time:', ':hug:', ':funk:', ':loveliness:', ':victory:', ':mad:'}
+      text = text.replaceAll(':D', ":lol:").replaceAll(':)', ":smile:").replace(/(:handshake)/g, "$1:").replace(/(:lol)([^:])/g, "$1:$2").replace(/(:lol)$/g, "$1:").replace(/:([a-z]{3,10}):/g, "<img src='images/smilies/qq/$1.gif' width=20 height=20 alt=':$1:' style='border: none; display:inline-block;vertical-align: bottom' />");
 
       const replaceNested = (regex, replacer) => {
         let prev = '';
