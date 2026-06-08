@@ -14,4 +14,5 @@ jobs:
 
     - name: Deploy to SF
       run: |
-        sshpass -p '${{ secrets.SF_PASSWORD }}' scp -o StrictHostKeyChecking=no -r docs/* ${{ secrets.SF_USERNAME }}@web.sourceforge.net:/home/project-web/jianghuai/htdocs
+        # sshpass -p '${{ secrets.SF_PASSWORD }}' scp -o StrictHostKeyChecking=no -r docs/* ${{ secrets.SF_USERNAME }}@web.sourceforge.net:/home/project-web/jianghuai/htdocs
+        sshpass -p '${{ secrets.SF_PASSWORD }}' scp -o StrictHostKeyChecking=no docs/jianghuai/viewthread.html docs/jianghuai/data.json ${{ secrets.SF_USERNAME }}@web.sourceforge.net:/home/project-web/jianghuai/htdocs/jianghuai/

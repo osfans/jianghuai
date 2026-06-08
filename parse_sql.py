@@ -265,6 +265,8 @@ def extract_posts_from_statement(statement: str, posts: List[List]) -> None:
             subject_token = fields[6]
             dateline = int(fields[7])
             message_token = fields[8].replace("\\r", "")
+            if "wedding gown" in message_token:
+                continue
         except ValueError:
             continue
 
