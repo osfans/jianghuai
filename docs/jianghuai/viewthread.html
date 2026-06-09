@@ -368,7 +368,7 @@
     <header>
       <h1 id="pageTitle">江淮漢韻</h1>
       <div id="searchWrap" class="search-row">
-        <input id="searchInput" type="search" placeholder="正在加载..." />
+        <input id="searchInput" type="search" placeholder="正在加载..." disabled/>
       </div>
       <div id="forumWrap" class="forum-row">
         <select id="forumSelect"><option value="0">全部版块</option></select>
@@ -381,6 +381,7 @@
   </div>
 
   <script type="text/javascript" src="data.json"></script>
+  <script type="text/javascript" src="attachments.json"></script>
   <script>
     const searchWrap = document.getElementById('searchWrap');
     const searchInput = document.getElementById('searchInput');
@@ -465,7 +466,7 @@
     }));
     const normalizedPosts = allPosts.map((p) => ({
       ...p,
-      _searchText: `${p.tid} ${p.subject || ''} ${p.message || ''}`.toLowerCase()
+      _searchText: `${p.tid} ${p.subject || ''} ${p.message.replace(/\[\[i\].*?\]\]/g, '').replace(/quote\]Originally.+/g, '') || ''}`.toLowerCase()
     }));
     const attachmentByAid = new Map(allAttachments.map((a) => [Number(a.aid), a]));
 
@@ -668,7 +669,7 @@
     function renderMessage(raw) {
       let text = escapeHtml(String(raw || '')).replace(/\r\n?/g, '\n');
       //{':cool:', ':kiss:', ':lol:', ':time:', ':hug:', ':funk:', ':loveliness:', ':victory:', ':mad:'}
-      text = text.replaceAll(':D', ":lol:").replaceAll(':)', ":smile:").replace(/(:handshake)/g, "$1:").replace(/(:lol)([^:])/g, "$1:$2").replace(/(:lol)$/g, "$1:").replace(/:([a-z]{3,10}):/g, "<img src='images/smilies/qq/$1.gif' width=20 height=20 alt=':$1:' style='border: none; display:inline-block;vertical-align: bottom' />");
+      text = text.replaceAll(':D', ":lol:").replaceAll(':(', ":sad:").replaceAll(':)', ":smile:").replace(/(:handshake)/g, "$1:").replace(/(:lol)([^:])/g, "$1:$2").replace(/(:lol)$/g, "$1:").replace(/:([a-z]{3,10}):/g, "<img src='images/smilies/qq/$1.gif' width=20 height=20 alt=':$1:' style='border: none; display:inline-block;vertical-align: bottom' />");
 
       const replaceNested = (regex, replacer) => {
         let prev = '';

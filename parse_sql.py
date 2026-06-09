@@ -457,9 +457,12 @@ def dump_json(posts: List[List], attachments: List[List], forums: List[List], us
     users_json = json.dumps(users, ensure_ascii=False, separators=(",", ":")).replace("&nbsp;", " ")
     f = open("docs/jianghuai/data.json", "w", encoding="utf-8")
     f.write("const rawPosts = " + posts_json + ";\n")
-    f.write("const rawAttachments = " + attachments_json + ";\n")
     f.write("const rawForums = " + forums_json + ";\n")
     f.write("const rawUsers = " + users_json + ";\n")
+    f.close()
+    f = open("docs/jianghuai/attachments.json", "w", encoding="utf-8")
+    f.write("const rawAttachments = " + attachments_json + ";\n")
+    f.close()
     print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}, forums*{len(forums)}, users*{len(users)}")
 
 
