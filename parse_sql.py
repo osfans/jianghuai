@@ -450,20 +450,81 @@ def extract_forums_from_statement(statement: str, forums: List[List]) -> None:
         forums.append([fid, name])
 
 
-def dump_json(posts: List[List], attachments: List[List], forums: List[List], users: List[List]):
+def parse_polloptions_from_sql(sql_path: Path) -> List[List]:
+    polloptions: List[List] = []
+    collecting = False
+    stmt_lines: List[str] = []
+
+    with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            line = line.strip()
+            stripped = line.lstrip()
+
+            if not collecting and stripped.startswith(f"INSERT INTO `{prefix}_polloptions`"):
+                collecting = True
+                stmt_lines = [line.strip()]
+                if line.endswith(";"):
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_polloptions_from_statement(statement, polloptions)
+                continue
+
+            if collecting:
+                stmt_lines.append(line.strip())
+                if line.endswith(";"):
+                    collecting = False
+                    statement = "".join(stmt_lines)
+                    stmt_lines = []
+                    extract_polloptions_from_statement(statement, polloptions)
+
+    polloptions.sort(key=lambda x: (x[0], x[2]))
+    return polloptions
+
+
+def extract_polloptions_from_statement(statement: str, polloptions: List[List]) -> None:
+    values_pos = statement.find("VALUES")
+    if values_pos == -1:
+        return
+
+    values_sql = statement[values_pos + len("VALUES"):]
+    if values_sql.endswith(";"):
+        values_sql = values_sql[:-1]
+
+    for tuple_body in iter_insert_tuples(values_sql):
+        fields = split_sql_tuple(tuple_body)
+        if len(fields) < 5:
+            continue
+
+        try:
+            tid = int(fields[1])
+            votes = int(fields[2])
+            displayorder = int(fields[3])
+            polloption_token = fields[4]
+        except ValueError:
+            continue
+
+        polloption = decode_sql_string(polloption_token)
+        # [tid, votes, displayorder, polloption]
+        polloptions.append([tid, votes, displayorder, polloption])
+
+
+def dump_json(posts: List[List], attachments: List[List], forums: List[List], users: List[List], polloptions: List[List]):
     posts_json = json.dumps(posts, ensure_ascii=False, separators=(",", ":")).replace("&nbsp;", " ")
     attachments_json = json.dumps(attachments, ensure_ascii=False, separators=(",", ":"))
     forums_json = json.dumps(forums, ensure_ascii=False, separators=(",", ":"))
     users_json = json.dumps(users, ensure_ascii=False, separators=(",", ":")).replace("&nbsp;", " ")
+    polloptions_json = json.dumps(polloptions, ensure_ascii=False, separators=(",", ":"))
     f = open("docs/jianghuai/data.json", "w", encoding="utf-8")
     f.write("const rawPosts = " + posts_json + ";\n")
     f.write("const rawForums = " + forums_json + ";\n")
     f.write("const rawUsers = " + users_json + ";\n")
+    f.write("const rawPolloptions = " + polloptions_json + ";\n")
     f.close()
     f = open("docs/jianghuai/attachments.json", "w", encoding="utf-8")
     f.write("const rawAttachments = " + attachments_json + ";\n")
     f.close()
-    print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}, forums*{len(forums)}, users*{len(users)}")
+    print(f"已生成 data.json: posts*{len(posts)}, attachments*{len(attachments)}, forums*{len(forums)}, users*{len(users)}, polloptions*{len(polloptions)}")
 
 
 def main() -> None:
@@ -499,7 +560,8 @@ def main() -> None:
         members = parse_members_from_sql(sql_path)
         memberfields = parse_memberfields_from_sql(sql_path)
         users = merge_users(members, memberfields)
-        dump_json(posts, attachments, forums, users)
+        polloptions = parse_polloptions_from_sql(sql_path)
+        dump_json(posts, attachments, forums, users, polloptions)
     else:
         print(f"SQL 文件不存在: {sql_path}")
 

@@ -354,6 +354,76 @@
       font-size: 15px;
     }
 
+    .poll-container {
+      margin-top: 16px;
+      padding: 12px;
+      background: var(--summary-a);
+      border-left: 4px solid var(--accent);
+      border-radius: 4px;
+    }
+
+    .poll-title {
+      font-weight: bold;
+      color: var(--accent);
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+
+    .poll-chart {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .poll-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .poll-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    .poll-text {
+      flex: 1;
+      margin-right: 8px;
+      word-break: break-word;
+    }
+
+    .poll-stat {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .poll-bar-container {
+      height: 20px;
+      background: var(--summary-b);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .poll-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
+    .poll-total {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+    }
+
     [hidden] { display: none !important; }
 
     @media (max-width: 640px) {
@@ -469,6 +539,21 @@
       _searchText: `${p.tid} ${p.subject || ''} ${p.message.replace(/\[\[i\].*?\]\]/g, '').replace(/quote\]Originally.+/g, '') || ''}`.toLowerCase()
     }));
     const attachmentByAid = new Map(allAttachments.map((a) => [Number(a.aid), a]));
+
+    // 处理投票数据
+    const pollsByTid = new Map();
+    (rawPolloptions || []).forEach((row) => {
+      const tid = Number(row[0]) || 0;
+      if (!pollsByTid.has(tid)) {
+        pollsByTid.set(tid, []);
+      }
+      const poll = {
+        votes: Number(row[1]) || 0,
+        displayorder: Number(row[2]) || 0,
+        polloption: String(row[3] || '')
+      };
+      pollsByTid.get(tid).push(poll);
+    });
 
     let activeRows = [];
     let activeKeyword = '';
@@ -844,6 +929,46 @@
       return template.innerHTML;
     }
 
+    function renderPollChart(tid) {
+      const polls = pollsByTid.get(tid);
+      if (!polls || polls.length === 0) {
+        return '';
+      }
+
+      // 按displayorder排序
+      const sortedPolls = [...polls].sort((a, b) => a.displayorder - b.displayorder);
+      
+      // 计算总票数和最大值用于归一化
+      const totalVotes = sortedPolls.reduce((sum, p) => sum + p.votes, 0);
+      const maxVotes = Math.max(...sortedPolls.map(p => p.votes), 1);
+      
+      const pollsHtml = sortedPolls.map((poll) => {
+        const percentage = totalVotes > 0 ? (poll.votes / totalVotes * 100).toFixed(1) : 0;
+        const barWidth = totalVotes > 0 ? (poll.votes / maxVotes * 100).toFixed(1) : 0;
+        return `
+        <div class="poll-item">
+          <div class="poll-label">
+            <span class="poll-text">${escapeHtml(poll.polloption)}</span>
+            <span class="poll-stat">${poll.votes} 票 (${percentage}%)</span>
+          </div>
+          <div class="poll-bar-container">
+            <div class="poll-bar" style="width: ${barWidth}%"></div>
+          </div>
+        </div>
+        `;
+      }).join('');
+
+      return `
+      <div class="poll-container">
+        <div class="poll-title">投票统计</div>
+        <div class="poll-chart">
+          ${pollsHtml}
+        </div>
+        <div class="poll-total">总票数: ${totalVotes}</div>
+      </div>
+      `;
+    }
+
     function cleanupObserver() {
       if (observer) {
         observer.disconnect();
@@ -868,6 +993,7 @@
         const badge = hasTidFilter
           ? `<span class="tid">${floor==1?"楼主":(floor==2?"沙发":(floor==3?"板凳":(floor==4?"地板":"#" + floor)))}</span>`
           : `<a class="tid" href="?tid=${encodeURIComponent(p.tid)}${String(p.subject) ? "" : "&pid=" + encodeURIComponent(p.pid)}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(p.tid))}</a>`;
+        const pollHtml = hasTidFilter && floor === 1 ? renderPollChart(p.tid) : '';
         return `
         <a id="${p.pid}"></a><details class="post"${openAttr}>
           <summary>
@@ -877,6 +1003,7 @@
             ${badge}
           </summary>
           <div class="message">${messageHtml}</div>
+          ${pollHtml}
         </details>
       `;
       }).join('');
